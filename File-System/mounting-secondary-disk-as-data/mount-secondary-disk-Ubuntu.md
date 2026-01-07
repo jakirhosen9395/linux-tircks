@@ -1,144 +1,165 @@
+# Mount Secondary Disk as `/data` (Ubuntu)
 
-# 🗂️ Mount Secondary Disk as `/data`
-
-This guide explains how to partition, format, and permanently mount a secondary disk (e.g., `/dev/sdb`) to `/data`.
+This guide shows the minimal, clear process to partition, format, and permanently mount a secondary disk (example: `/dev/sdb`) to `/data` on Ubuntu.
 
 ---
 
-## 📌 Assumptions
+## Assumptions
 
-- You have a second disk (e.g., `/dev/sdb`) of 100GB.
-- Primary OS is installed on `/dev/sda`.
-- Target mount point is `/data`.
+- New disk: `/dev/sdb` (example size: **100G**)
+- Primary OS disk: `/dev/sda`
+- Mount point: `/data`
 - Filesystem: `ext4`
+- You have `sudo` access
+
+> Warning: These steps will erase any existing data on `/dev/sdb`.
 
 ---
 
-## 🛠️ Step-by-Step Instructions
+## 1) Identify the new disk
 
-### 1. 🔍 Identify the New Disk
-
-Run the following command to list disks:
-
+Command:
 ```bash
 lsblk
 ```
 
-You should see output like:
-
-```
+Example output:
+```text
 NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
 sda      8:0    0   50G  0 disk 
 ├─sda1   8:1    0    1G  0 part /boot/efi
 ├─sda2   8:2    0    2G  0 part /boot
 └─sda3   8:3    0 46.9G  0 part /
-sdb      8:16   0  100G  0 disk                  # ← Unused disk
+sdb      8:16   0  100G  0 disk                  # <- Unused disk
 ```
 
 ---
 
-### 2. 📏 Partition `/dev/sdb`
+## 2) Create a partition on `/dev/sdb`
 
-Launch `fdisk`:
-
+Command:
 ```bash
 sudo fdisk /dev/sdb
 ```
 
-Inside `fdisk`, enter the following:
-
+Inside `fdisk`, type:
+```text
+n     -> New partition
+p     -> Primary
+1     -> Partition number
+<Enter> -> Default first sector
+<Enter> -> Default last sector (use full disk)
+w     -> Write and exit
 ```
-n     → New partition  
-p     → Primary  
-1     → Partition number  
-Enter → Accept default first sector  
-Enter → Accept default last sector (use full disk)  
-w     → Write and exit
+
+Verify:
+```bash
+lsblk /dev/sdb
+```
+
+Example output:
+```text
+NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+sdb      8:16   0  100G  0 disk
+└─sdb1   8:17   0  100G  0 part
 ```
 
 ---
 
-### 3. 🧱 Format the Partition
+## 3) Format the partition
 
+Command:
 ```bash
 sudo mkfs.ext4 /dev/sdb1
 ```
 
+Example output:
+```text
+mke2fs 1.47.0 (5-Feb-2023)
+Creating filesystem with 26213632 4k blocks and 6553600 inodes
+Filesystem UUID: 1c2f0a9e-6f15-4a0d-8d3f-1f0a2a3b4c5d
+Superblock backups stored on blocks:
+        32768, 98304, 163840, 229376, 294912, 819200, 884736, ...
+Allocating group tables: done
+Writing inode tables: done
+Creating journal (131072 blocks): done
+Writing superblocks and filesystem accounting information: done
+```
+
 ---
 
-### 4. 📂 Create the Mount Directory
+## 4) Create the mount directory
 
+Command:
 ```bash
 sudo mkdir -p /data
 ```
 
 ---
 
-### 5. 🖇️ Mount the Disk Temporarily
+## 5) Mount temporarily and verify
 
+Command:
 ```bash
 sudo mount /dev/sdb1 /data
 ```
 
-To verify:
-
+Verify:
 ```bash
-df -h | grep /data
+df -hT | grep /data
+```
+
+Example output:
+```text
+/dev/sdb1  ext4   98G   24K   93G   1% /data
 ```
 
 ---
 
-### 6. 🛡️ Mount Disk Permanently (Edit `/etc/fstab`)
+## 6) Make it permanent with `/etc/fstab` (UUID recommended)
 
-Instead of using UUID, you can directly use `/dev/sdb1` if you're sure the device name won't change.
+Get UUID:
+```bash
+sudo blkid /dev/sdb1
+```
+
+Example output:
+```text
+/dev/sdb1: UUID="1c2f0a9e-6f15-4a0d-8d3f-1f0a2a3b4c5d" TYPE="ext4" PARTUUID="8f0c1d2e-01"
+```
 
 Edit `/etc/fstab`:
-
 ```bash
 sudo nano /etc/fstab
 ```
 
-Add this line at the bottom:
-
+Add this line (replace UUID with your actual value):
 ```fstab
-/dev/sdb1  /data  ext4  defaults  0  2
+UUID=1c2f0a9e-6f15-4a0d-8d3f-1f0a2a3b4c5d  /data  ext4  defaults  0  2
 ```
-
-Save and exit.
 
 ---
 
-### 7. ✅ Final Test
+## 7) Final test
 
-Run:
-
+Command:
 ```bash
 sudo umount /data
 sudo mount -a
-df -h | grep /data
 ```
 
-You should now see `/dev/sdb1` mounted at `/data` permanently.
+Verify:
+```bash
+df -hT | grep /data
+```
 
----
-
-## 🧾 Example `fstab` Entry
-
-```fstab
-# <file system>  <mount point>  <type>  <options>  <dump>  <pass>
-/dev/sdb1  /data  ext4  defaults  0  2
+Example output:
+```text
+/dev/sdb1  ext4   98G   24K   93G   1% /data
 ```
 
 ---
 
-## 📎 Notes
+## Done
 
-- If you're using a cloud platform, disk names (e.g., `/dev/sdb1`) may change across reboots.
-- For safer mounting, prefer UUID when possible: `sudo blkid /dev/sdb1`
-- You can use this mount point for MongoDB, Docker volumes, or general data storage.
-
----
-
-## ✅ Done!
-
-You now have a 100GB disk mounted to `/data` and it will persist across reboots.
+Your secondary disk is mounted at `/data` and will persist across reboots.
