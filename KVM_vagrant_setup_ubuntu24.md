@@ -70,14 +70,8 @@ By the end of this guide, you will have:
 Update the system to a known‑good state:
 
 ```bash
-sudo apt update -y && sudo apt upgrade -y && sudo apt dist-upgrade -y && sudo apt autoremove -y && sudo apt clean
+sudo apt update -y
 ```
-
-### ✅ Example output
-```text
-0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
-```
-
 ---
 
 ## 2️⃣ Reboot Safety Check
