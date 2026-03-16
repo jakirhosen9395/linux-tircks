@@ -3,7 +3,7 @@
 ## Purpose
 This document explains how to change the static IP address on a Rocky Linux server managed by **NetworkManager** by editing the connection profile file directly.
 
-In this case, the target change is:
+In this case, the target change is :
 
 - **Old IP:** `10.70.57.182`
 - **New IP:** `10.70.57.183`
