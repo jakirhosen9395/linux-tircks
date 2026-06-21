@@ -151,7 +151,7 @@ Virtualization: VT-x
 ## 6️⃣ Install KVM + libvirt Stack
 
 ```bash
-sudo apt install -y   qemu-kvm   libvirt-daemon-system   libvirt-clients   virt-manager   bridge-utils
+sudo apt install -y qemu-system-x86 libvirt-daemon-system libvirt-clients virt-manager bridge-utils
 ```
 
 Enable and start libvirt:
@@ -176,8 +176,6 @@ Reboot if prompted.
 Without this, Vagrant **will fail**.
 
 ```bash
-sudo usermod -aG libvirt $USER
-sudo usermod -aG libvirt-kvm $USER
 sudo usermod -aG libvirt,kvm $USER
 ```
 
