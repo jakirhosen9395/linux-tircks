@@ -1,6 +1,6 @@
 # 🚀 Create Virtual Machines with Vagrant + KVM/libvirt on Ubuntu
 
-> **A clean, eye‑catchy, production‑ready guide** to running local VMs using **Vagrant** backed by **KVM/libvirt**.  
+> **A clean, eye‑catchy, production‑ready guide** to running local VMs using **Vagrant** backed by **KVM/libvirt**.
 > This document is based on real hands‑on steps executed on a local Ubuntu system, structured to avoid confusion and guesswork.
 
 ---
@@ -33,23 +33,25 @@ By the end of this guide, you will have:
 - ✅ A reproducible **Ubuntu 24.04 VM**
 - ✅ Private networking with a static IP
 
+> ⚡ **In a hurry?** The two things that trip everyone up are (1) the `qemu-kvm` package name → see [Step 6](#6️⃣-install-kvm--libvirt-stack) (`#install-kvm--libvirt-stack`), and (2) the `libvirt-sock: Permission denied` error → see [Step 7](#7️⃣-fix-permissions-critical-step) (`#fix-permissions-critical-step`) and [Troubleshooting](#-troubleshooting). Read those two and you’re 90% there.
+
 ---
 
 ## 📚 Useful Resources (bookmark these)
 
-- 🔗 Vagrant official site:  
+- 🔗 Vagrant official site:
   https://www.vagrantup.com/
 
-- 🔗 Vagrant box discovery (official):  
+- 🔗 Vagrant box discovery (official):
   https://portal.cloud.hashicorp.com/vagrant/discover/
 
-- 🔗 Bento Ubuntu boxes:  
+- 🔗 Bento Ubuntu boxes:
   https://portal.cloud.hashicorp.com/vagrant/discover/bento
 
-- 🔗 libvirt docs:  
+- 🔗 libvirt docs:
   https://libvirt.org/
 
-- 🔗 vagrant-libvirt plugin:  
+- 🔗 vagrant-libvirt plugin:
   https://github.com/vagrant-libvirt/vagrant-libvirt
 
 ---
@@ -58,7 +60,7 @@ By the end of this guide, you will have:
 
 | Requirement | Notes |
 |------------|------|
-| OS | Ubuntu **24.04 LTS** (recommended) |
+| OS | Ubuntu **24.04 LTS** (also works on 24.10 / 25.04 / 25.10 — see package note in Step 6) |
 | Access | `sudo` privileges |
 | CPU | Intel VT‑x or AMD‑V |
 | BIOS | Virtualization **enabled** |
@@ -106,8 +108,8 @@ SSH makes VM and host access predictable and script‑friendly.
 
 ```bash
 sudo apt install -y openssh-server
+sudo systemctl enable --now ssh
 sudo systemctl status ssh
-sudo systemctl enable ssh
 ```
 
 ### ✅ Expected state
@@ -124,7 +126,7 @@ timedatectl
 lscpu
 ```
 
-Check virtualization flags:
+Check virtualization flags (count of CPU threads that expose `vmx` (Intel) or `svm` (AMD)):
 
 ```bash
 egrep -c '(vmx|svm)' /proc/cpuinfo
@@ -132,10 +134,12 @@ egrep -c '(vmx|svm)' /proc/cpuinfo
 
 ### ✅ Example
 ```text
-8
+16
 ```
 
-Confirm OS sees virtualization:
+> Any number **greater than 0** means virtualization is supported. `0` means VT‑x/AMD‑V is disabled in BIOS/UEFI — enable it before continuing.
+
+Confirm the OS sees virtualization:
 
 ```bash
 lscpu | grep Virtualization
@@ -150,15 +154,41 @@ Virtualization: VT-x
 
 ## 6️⃣ Install KVM + libvirt Stack
 
+> ### ⚠️ Heads‑up: there is **no** `qemu-kvm` package on modern Ubuntu
+>
+> On Ubuntu 24.04 and newer, `qemu-kvm` is only a **virtual (transitional) package** — it has no real installation candidate, so this fails:
+>
+> ```text
+> $ sudo apt install -y qemu-kvm
+> Package qemu-kvm is a virtual package provided by:
+>   qemu-system-x86-hwe ...
+>   qemu-system-x86 ...
+> You should explicitly select one to install.
+> Error: Package 'qemu-kvm' has no installation candidate
+> ```
+>
+> ✅ **The fix:** install the real package, **`qemu-system-x86`**, instead of `qemu-kvm`.
+
+Install the full stack with the correct package name:
+
 ```bash
-sudo apt install -y qemu-system-x86 libvirt-daemon-system libvirt-clients virt-manager bridge-utils
+sudo apt install -y \
+  qemu-system-x86 \
+  libvirt-daemon-system \
+  libvirt-clients \
+  virt-manager \
+  bridge-utils
 ```
 
-Enable and start libvirt:
+> 💡 You may also see a `qemu-system-x86-hwe` package in the provider list (the user’s machine above lists **both**). That’s an **optional Hardware‑Enablement variant** that ships a *newer* QEMU and **coexists** with `qemu-system-x86` on the same release — it is **not** a replacement for a missing base package. Most users want the standard `qemu-system-x86`. Only choose the `-hwe` variant if you specifically need the newer virtualization stack:
+> ```bash
+> sudo apt install -y qemu-system-x86-hwe libvirt-daemon-system libvirt-clients virt-manager bridge-utils
+> ```
+
+Enable and start libvirt (the `--now` flag enables **and** starts in one shot):
 
 ```bash
-sudo systemctl enable libvirtd
-sudo systemctl start libvirtd
+sudo systemctl enable --now libvirtd
 systemctl status libvirtd
 ```
 
@@ -167,35 +197,75 @@ systemctl status libvirtd
 Active: active (running)
 ```
 
-Reboot if prompted.
+> ℹ️ **Newer Ubuntu releases (24.10+):** libvirt is moving to *modular daemons* (`virtqemud`, `virtnetworkd`, …) where `libvirtd` is a socket‑activated compatibility shim. You don’t need to change anything — the permission fix in Step 7 is identical. If `systemctl status libvirtd` shows it as inactive but `virsh` still works after Step 7, that’s expected on those releases.
+
+Reboot if prompted (`/var/run/reboot-required`).
 
 ---
 
 ## 7️⃣ Fix Permissions (Critical Step ⚠️)
 
-Without this, Vagrant **will fail**.
+Without this, Vagrant **will fail** with:
+
+```text
+Failed to connect socket to '/var/run/libvirt/libvirt-sock': Permission denied
+```
+
+That error simply means **your user is not yet an effective member of the `libvirt` group** in the current login session.
+
+### Step 7.1 — Add your user to the `libvirt` and `kvm` groups
 
 ```bash
 sudo usermod -aG libvirt,kvm $USER
 ```
 
-Apply changes:
+### Step 7.2 — ⚠️ Start a **new login session** (this is the part people miss)
+
+Group changes from `usermod` **do not apply to sessions that are already open** — including your current terminal *and* every other terminal tab/window opened from the same desktop login. The reliable way to pick them up is a full **log out / log back in**, or simply:
+
 ```bash
-newgrp libvirt
-newgrp kvm
+sudo reboot
 ```
 
-Validate:
+> 🧪 **Just want to test in this one terminal without rebooting?**
+> ```bash
+> newgrp libvirt
+> ```
+> ⚠️ `newgrp` only affects **the single shell you run it in** — it spawns a nested subshell. Do **not** chain `newgrp libvirt` then `newgrp kvm`; the second just nests again and the effect doesn’t carry over to Vagrant, your editor, or new tabs. Treat `newgrp` as a quick smoke‑test only. **Log out/in or reboot is the real fix.**
+
+### Step 7.3 — Validate (after re‑login / reboot)
+
 ```bash
 groups
 ls -l /dev/kvm
+ls -l /var/run/libvirt/libvirt-sock
 virsh list --all
 ```
 
-### ✅ `/dev/kvm` should look like
+### ✅ What “good” looks like
+
+`groups` includes both `libvirt` and `kvm`:
 ```text
-crw-rw----+ 1 root kvm ...
+jakir adm sudo libvirt kvm ...
 ```
+
+`/dev/kvm` is group‑owned by `kvm`:
+```text
+crw-rw----+ 1 root kvm ... /dev/kvm
+```
+
+The libvirt socket is group‑owned by `libvirt` with group read/write:
+```text
+srwxrwx--- 1 root libvirt 0 ... /var/run/libvirt/libvirt-sock
+```
+
+And `virsh` connects **without `sudo`**:
+```text
+$ virsh list --all
+ Id   Name   State
+--------------------
+```
+(An empty list is success — it means you connected and there are simply no VMs yet.)
 
 ---
 
@@ -240,7 +310,22 @@ vagrant-libvirt (x.x.x, global)
 
 ---
 
-## 🔟 Create Project & Initialize Box
+## 🔟 Verify KVM Acceleration (Optional but Recommended)
+
+```bash
+sudo apt install -y cpu-checker
+kvm-ok
+```
+
+### ✅ Expected
+```text
+INFO: /dev/kvm exists
+KVM acceleration can be used
+```
+
+---
+
+## 1️⃣1️⃣ Create Project & Initialize Box
 
 ```bash
 mkdir -p ~/vagrant/ubuntu-24.04
@@ -250,7 +335,7 @@ vagrant init bento/ubuntu-24.04
 
 ---
 
-## 1️⃣1️⃣ Recommended `Vagrantfile`
+## 1️⃣2️⃣ Recommended `Vagrantfile`
 
 ```ruby
 Vagrant.configure("2") do |config|
@@ -271,7 +356,7 @@ end
 
 ---
 
-## 1️⃣2️⃣ VM Lifecycle Commands
+## 1️⃣3️⃣ VM Lifecycle Commands
 
 ### ▶️ Start
 ```bash
@@ -300,13 +385,106 @@ vagrant destroy -f
 
 ---
 
-## 1️⃣3️⃣ Global Cleanup & Control
+## 1️⃣4️⃣ Global Cleanup & Control
 
 ```bash
 vagrant global-status
 vagrant destroy <id>
 rm -rf .vagrant
 ```
+
+---
+
+## 🛠 Troubleshooting
+
+### ❌ `Package 'qemu-kvm' has no installation candidate`
+
+```text
+Package qemu-kvm is a virtual package provided by:
+  qemu-system-x86-hwe ...
+  qemu-system-x86 ...
+Error: Package 'qemu-kvm' has no installation candidate
+```
+
+**Cause:** `qemu-kvm` is a transitional/virtual package on modern Ubuntu and can’t be installed directly.
+**Fix:** install `qemu-system-x86` (the `qemu-system-x86-hwe` package you may see listed is an optional newer variant, **not** required):
+
+```bash
+sudo apt install -y qemu-system-x86 libvirt-daemon-system libvirt-clients virt-manager bridge-utils
+```
+
+---
+
+### ❌ `Failed to connect socket to '/var/run/libvirt/libvirt-sock': Permission denied`
+
+Seen as either:
+```text
+error: failed to connect to the hypervisor
+error: Failed to connect socket to '/var/run/libvirt/libvirt-sock': Permission denied
+```
+or, from Vagrant:
+```text
+Error while connecting to Libvirt: Call to virConnectOpen failed:
+Failed to connect socket to '/var/run/libvirt/libvirt-sock': Permission denied
+```
+
+**Cause:** your shell/session isn’t an effective member of the `libvirt` group yet — almost always because the session was opened *before* `usermod`, or hasn’t been refreshed since.
+
+**Fix (in order):**
+
+1. Confirm membership exists on the account:
+   ```bash
+   groups $USER          # should list: libvirt kvm
+   ```
+   If they’re missing, add them:
+   ```bash
+   sudo usermod -aG libvirt,kvm $USER
+   ```
+2. **Apply it to a real session — log out/in or reboot** (most reliable):
+   ```bash
+   sudo reboot
+   ```
+   `newgrp libvirt` works only for one throwaway shell; it will *not* fix Vagrant or new terminals.
+3. Make sure the daemon is actually running (a stopped daemon shows the same socket error):
+   ```bash
+   sudo systemctl enable --now libvirtd
+   sudo systemctl status libvirtd          # expect: active (running)
+   ```
+4. Sanity‑check the socket ownership:
+   ```bash
+   ls -l /var/run/libvirt/libvirt-sock     # expect group 'libvirt', perms srwxrwx---
+   ```
+   If ownership looks wrong, restart the daemon:
+   ```bash
+   sudo systemctl restart libvirtd
+   ```
+5. Re‑test **without sudo**, then retry Vagrant:
+   ```bash
+   groups | grep -o libvirt      # libvirt should be present in the CURRENT shell now
+   virsh list --all              # must succeed without sudo
+   vagrant up --provider=libvirt
+   ```
+
+---
+
+### ⚠️ `[fog][WARNING] Unrecognized arguments: libvirt_ip_command`
+
+```text
+[fog][WARNING] Unrecognized arguments: libvirt_ip_command
+```
+
+**This is harmless.** It’s a benign version‑mismatch warning between the `vagrant-libvirt` plugin and its `fog-libvirt` dependency. It does **not** block the connection or the VM. Ignore it — if `vagrant up` still fails, the real cause is the permission error above, not this warning.
+
+---
+
+### ❌ `KVM acceleration cannot be used` (from `kvm-ok`)
+
+- Re‑check BIOS/UEFI: VT‑x (Intel) or AMD‑V (SVM) must be **enabled**.
+- Confirm flags are visible to the OS:
+  ```bash
+  egrep -c '(vmx|svm)' /proc/cpuinfo   # must be > 0
+  ```
+- Ensure `/dev/kvm` exists and you’re in the `kvm` group (see Step 7).
 
 ---
 
@@ -319,4 +497,3 @@ vagrant status
 vagrant ssh
 ```
 
-🎉 **Congrats — your local KVM‑powered VM stack is production‑grade and reproducible.**
