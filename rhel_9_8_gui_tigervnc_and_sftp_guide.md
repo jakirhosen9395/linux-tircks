@@ -8,7 +8,7 @@ This guide documents the complete, sequential configuration of a Red Hat Enterpr
 
 During our implementation sessions, two access architectures were discussed:
 1. **Primary Implemented Architecture (Documented as the Main Procedure in Steps 1–20):**
-   * **Direct TigerVNC Access:** TigerVNC listens on `0.0.0.0:5901` through `0.0.0.0:5904` (with `localhost` omitted from `/etc/tigervnc/vncserver-config-mandatory`). Users connect directly from TigerVNC Viewer to `<SERVER_IP>:5901`–`5904` without launching an SSH tunnel.
+   * **Direct TigerVNC Access:** TigerVNC listens on `0.0.0.0:5901` through `0.0.0.0:5904` (with `localhost` omitted from `/etc/tigervnc/vncserver-config-mandatory`). Users connect directly from TigerVNC Viewer to `172.31.15.219:5901`–`5904` without launching an SSH tunnel.
    * **Synchronized 8-Character Passwords:** Because TigerVNC's `vncauth` truncates passwords at 8 characters, PAM `pwquality` is configured to allow 8-character Linux passwords (`minlen = 8`), and each user's Linux password and VNC password are set to the same 8-character value.
    * **Explicit Two-Group SFTP Control (`sftp-allowed` and `sftp-denied`):** Users in `sftp-allowed` (`GID 1001`) are chrooted to `/srv/sftp/%u` with a writable `files/` subdirectory using `ForceCommand internal-sftp`. Users in `sftp-denied` (`GID 1002`) are blocked from SFTP/SSH while retaining full access to their direct TigerVNC desktop sessions.
 2. **Alternative / Optional Architectures Discussed (Documented in Step 17 and Section 8):**
@@ -22,32 +22,32 @@ Replace these placeholders with your environment's values when executing command
 
 | Placeholder | Description | Example / Implemented Pattern |
 | :--- | :--- | :--- |
-| `<SERVER_IP>` | Private or public IPv4 address of the RHEL 9.8 VNC/SFTP server | `10.0.1.213` |
+| `172.31.15.219` | Private or public IPv4 address of the RHEL 9.8 VNC/SFTP server | `10.0.1.213` |
 | `<SERVER_HOSTNAME>` | Hostname of the RHEL 9.8 server | `vnc-rhel9-srv01` |
 | `<SERVER2_IP>` | IPv4 address of the optional secondary backend server | `10.0.1.185` |
 | `<ADMIN_USER>` | Primary administrative SSH user with `wheel`/`sudo` access | `ec2-user` |
-| `<USER_1>` | VNC User 1 (Display `:1`, Port `5901`, `sftp-allowed`) | `vncuser1` |
-| `<USER_2>` | VNC User 2 (Display `:2`, Port `5902`, `sftp-allowed`) | `vncuser2` |
-| `<USER_3>` | VNC User 3 (Display `:3`, Port `5903`, `sftp-denied`) | `vncuser3` |
-| `<USER_4>` | VNC User 4 (Display `:4`, Port `5904`, `sftp-denied`) | `vncuser4` |
-| `<NEW_USER>` | Placeholder for onboarding/modifying an additional employee | `vncuser5` |
+| `<user1>` | VNC User 1 (Display `:1`, Port `5901`, `sftp-allowed`) | `vncuser1` |
+| `<user2>` | VNC User 2 (Display `:2`, Port `5902`, `sftp-allowed`) | `vncuser2` |
+| `<user3>` | VNC User 3 (Display `:3`, Port `5903`, `sftp-denied`) | `vncuser3` |
+| `<user4>` | VNC User 4 (Display `:4`, Port `5904`, `sftp-denied`) | `vncuser4` |
+| `<newuser>` | Placeholder for onboarding/modifying an additional employee | `vncuser5` |
 | `<USER_PASSWORD_8CHAR>` | Interactive 8-character password (must not contain username) | Entered interactively (never hardcoded) |
 
 ### 1.3 Implemented Display, Port, and Group Mapping Matrix
 
 | Linux User | VNC Display | VNC TCP Port | Linux Group (`GID`) | Direct VNC Access | SFTP Access | Chroot Writable Path |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `<USER_1>` | `:1` | `5901` | `sftp-allowed` (`1001`) | `<SERVER_IP>:5901` | **Allowed** | `/srv/sftp/<USER_1>/files` |
-| `<USER_2>` | `:2` | `5902` | `sftp-allowed` (`1001`) | `<SERVER_IP>:5902` | **Allowed** | `/srv/sftp/<USER_2>/files` |
-| `<USER_3>` | `:3` | `5903` | `sftp-denied` (`1002`) | `<SERVER_IP>:5903` | **Denied** | None |
-| `<USER_4>` | `:4` | `5904` | `sftp-denied` (`1002`) | `<SERVER_IP>:5904` | **Denied** | None |
+| `user1` | `:1` | `5901` | `sftp-allowed` (`1001`) | `172.31.15.219:5901` | **Allowed** | `/srv/sftp/user1/files` |
+| `user2` | `:2` | `5902` | `sftp-allowed` (`1001`) | `172.31.15.219:5902` | **Allowed** | `/srv/sftp/user2/files` |
+| `user3` | `:3` | `5903` | `sftp-denied` (`1002`) | `172.31.15.219:5903` | **Denied** | None |
+| `user4` | `:4` | `5904` | `sftp-denied` (`1002`) | `172.31.15.219:5904` | **Denied** | None |
 
 ---
 
 ## 2. Complete RHEL 9.8 Server Preparation
 
 ### Step 1: Verify RHEL 9.8 OS Release, Kernel, and Repositories
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/os-release`
@@ -79,21 +79,21 @@ Confirms the host is running Red Hat Enterprise Linux `9.8` (`platform:el9`) and
 ---
 
 ### Step 2: Configure Hostname and Verify Network Identity
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/hostname`
 
 **Commands:**
 ```bash
-hostnamectl set-hostname <SERVER_HOSTNAME>
+hostnamectl set-hostname vnc-server
 hostname -I
 ip -br addr show
 ```
 
 **Configuration:**
 ```text
-<SERVER_HOSTNAME>
+vnc-server
 ```
 
 **Validation:**
@@ -103,12 +103,12 @@ hostname -I
 ```
 
 **Expected result:**
-`hostnamectl status` displays `Static hostname: <SERVER_HOSTNAME>`, and `hostname -I` outputs the exact IP address (`<SERVER_IP>`) that clients will use to connect via TigerVNC Viewer and SFTP. Record this exact IP so client connections do not target the wrong instance.
+`hostnamectl status` displays `Static hostname: vnc-server`, and `hostname -I` outputs the exact IP address (`172.31.15.219`) that clients will use to connect via TigerVNC Viewer and SFTP. Record this exact IP so client connections do not target the wrong instance.
 
 ---
 
 ### Step 3: Update System Packages and Install Base Administration Dependencies
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `None (System Package Management)`
@@ -141,7 +141,7 @@ All four core packages return their installed `.el9` version strings with zero m
 ---
 
 ### Step 4: Verify Firewalld and SELinux Status
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/selinux/config`
@@ -174,7 +174,7 @@ Outputs `active` for `firewalld` and `Enforcing` for SELinux. Never disable `fir
 ## 3. GUI / Desktop Environment Installation
 
 ### Step 5: Install GNOME Desktop Environment (`Server with GUI`) and X11 Dependencies
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `None (DNF Group Installation)`
@@ -205,7 +205,7 @@ Outputs the installed `.el9_8` package versions for `gnome-shell`, `gnome-sessio
 ---
 
 ### Step 6: Configure Display Manager and Switch to `graphical.target`
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/systemd/system/default.target`
@@ -245,13 +245,13 @@ systemctl is-active gdm.service
 | **Linux System Users** | Run OS daemons (`sshd`, `gdm`, `dbus`) | UID `< 1000` | System groups | `/sbin/nologin` | No | No |
 | **Administrative Users** | Full server administration (`<ADMIN_USER>`) | UID `>= 1000` | `wheel` | `/bin/bash` (SSH key) | Optional | Full (`scp`/`sftp`) |
 | **Normal Linux Users** | Standard interactive local/SSH users | UID `>= 1000` | User private group | `/bin/bash` | No (unless mapped) | Default |
-| **VNC + SFTP Allowed Users** | Remote GUI desktop + file upload/download (`<USER_1>`, `<USER_2>`) | UID `>= 1000` | `sftp-allowed` (`1001`) | `/bin/bash` (local VNC terminal); SSH forced to `internal-sftp` | Yes (`:1`, `:2`) | **Yes** (Chrooted to `/srv/sftp/%u`) |
-| **VNC + SFTP Denied Users** | Remote GUI desktop only; no file transfer (`<USER_3>`, `<USER_4>`) | UID `>= 1000` | `sftp-denied` (`1002`) | `/bin/bash` (local VNC terminal); SSH/SFTP blocked via `DenyGroups` | Yes (`:3`, `:4`) | **No** (Blocked at `sshd`) |
+| **VNC + SFTP Allowed Users** | Remote GUI desktop + file upload/download (`user1`, `user2`) | UID `>= 1000` | `sftp-allowed` (`1001`) | `/bin/bash` (local VNC terminal); SSH forced to `internal-sftp` | Yes (`:1`, `:2`) | **Yes** (Chrooted to `/srv/sftp/%u`) |
+| **VNC + SFTP Denied Users** | Remote GUI desktop only; no file transfer (`user3`, `user4`) | UID `>= 1000` | `sftp-denied` (`1002`) | `/bin/bash` (local VNC terminal); SSH/SFTP blocked via `DenyGroups` | Yes (`:3`, `:4`) | **No** (Blocked at `sshd`) |
 
 ---
 
 ### Step 7: Configure PAM `pwquality` to Allow 8-Character Passwords
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/security/pwquality.conf`
@@ -274,12 +274,12 @@ grep -E '^(minlen|usercheck|dictcheck)' /etc/security/pwquality.conf || grep '^m
 ```
 
 **Expected result:**
-Displays `minlen = 8`. Note that `usercheck = 1` and `dictcheck = 1` remain active by default, meaning passwords should not contain the username (e.g., avoid `<USER_1>123` to prevent `BAD PASSWORD: The password contains the user name in some form`).
+Displays `minlen = 8`. Note that `usercheck = 1` and `dictcheck = 1` remain active by default, meaning passwords should not contain the username (e.g., avoid `user1123` to prevent `BAD PASSWORD: The password contains the user name in some form`).
 
 ---
 
 ### Step 8: Create SFTP Access Groups (`sftp-allowed` and `sftp-denied`)
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/group`
@@ -308,52 +308,52 @@ Outputs `sftp-allowed:x:1001:` and `sftp-denied:x:1002:`. (If GID `1001` or `100
 ---
 
 ### Step 9: Create Linux Users, Assign Groups, Lock Down Home Directories, and Set Passwords
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/passwd`, `/etc/shadow`, `/etc/group`
 
 **Commands:**
 ```bash
-# Create SFTP-allowed VNC users (<USER_1> and <USER_2>)
-useradd -m -s /bin/bash -G sftp-allowed <USER_1>
-useradd -m -s /bin/bash -G sftp-allowed <USER_2>
+# Create SFTP-allowed VNC users (user1 and user2)
+useradd -m -s /bin/bash -G sftp-allowed user1
+useradd -m -s /bin/bash -G sftp-allowed user2
 
-# Create SFTP-denied VNC users (<USER_3> and <USER_4>)
-useradd -m -s /bin/bash -G sftp-denied <USER_3>
-useradd -m -s /bin/bash -G sftp-denied <USER_4>
+# Create SFTP-denied VNC users (user3 and user4)
+useradd -m -s /bin/bash -G sftp-denied user3
+useradd -m -s /bin/bash -G sftp-denied user4
 
 # Enforce strict 0700 permissions on all user home directories
-chmod 700 /home/<USER_1> /home/<USER_2> /home/<USER_3> /home/<USER_4>
+chmod 700 /home/user1 /home/user2 /home/user3 /home/user4
 
 # Set an interactive 8-character Linux password for each user
-passwd <USER_1>
-passwd <USER_2>
-passwd <USER_3>
-passwd <USER_4>
+passwd user1
+passwd user2
+passwd user3
+passwd user4
 ```
 
 **Configuration:**
 ```text
 # Group memberships in /etc/group:
-sftp-allowed:x:1001:<USER_1>,<USER_2>
-sftp-denied:x:1002:<USER_3>,<USER_4>
+sftp-allowed:x:1001:user1,user2
+sftp-denied:x:1002:user3,user4
 ```
 
 **Validation:**
 ```bash
-id <USER_1>
-id <USER_2>
-id <USER_3>
-id <USER_4>
+id user1
+id user2
+id user3
+id user4
 getent group sftp-allowed sftp-denied
-ls -ld /home/<USER_1> /home/<USER_2> /home/<USER_3> /home/<USER_4>
-passwd -S <USER_1> <USER_2> <USER_3> <USER_4>
+ls -ld /home/user1 /home/user2 /home/user3 /home/user4
+passwd -S user1 user2 user3 user4
 ```
 
 **Expected result:**
-* `<USER_1>` and `<USER_2>` belong to `1001(sftp-allowed)` and **not** `wheel` or `sftp-denied`.
-* `<USER_3>` and `<USER_4>` belong to `1002(sftp-denied)` and **not** `wheel` or `sftp-allowed`.
+* `user1` and `user2` belong to `1001(sftp-allowed)` and **not** `wheel` or `sftp-denied`.
+* `user3` and `user4` belong to `1002(sftp-denied)` and **not** `wheel` or `sftp-allowed`.
 * All four `/home/<USER_N>` directories show `drwx------.` (`0700`) owned by `<USER_N>:<USER_N>`.
 * `passwd -S` shows `PS` (password set) for all four accounts.
 
@@ -380,10 +380,10 @@ Execute these commands as `root` when inspecting or modifying users and groups:
 ### 5.1 How Multi-User TigerVNC Works on RHEL 9.8
 * **Independent Sessions:** TigerVNC uses the systemd template unit `/usr/lib/systemd/system/vncserver@.service`. Each display number (`:1`, `:2`, `:3`, `:4`) launches an isolated `Xvnc` server and `gnome-session` owned by the mapped Linux user in `/etc/tigervnc/vncserver.users`.
 * **Display-to-Port Mapping:** Display `:N` listens on TCP port `5900 + N`:
-  * `:1` = TCP `5901` (`<USER_1>`)
-  * `:2` = TCP `5902` (`<USER_2>`)
-  * `:3` = TCP `5903` (`<USER_3>`)
-  * `:4` = TCP `5904` (`<USER_4>`)
+  * `:1` = TCP `5901` (`user1`)
+  * `:2` = TCP `5902` (`user2`)
+  * `:3` = TCP `5903` (`user3`)
+  * `:4` = TCP `5904` (`user4`)
 * **Linux Password vs. VNC Password:**
   * The **Linux password** is stored in `/etc/shadow` and authenticates PAM services (SSH/SFTP logins and GNOME Polkit/screen unlock prompts).
   * The **VNC password** is stored in `/home/<USER>/.config/tigervnc/passwd` (mode `0600`) and authenticates the initial TigerVNC Viewer connection (`vncauth`). Because `vncauth` only evaluates the first 8 characters, setting both passwords to the exact same 8-character string provides a single password experience for end users.
@@ -391,7 +391,7 @@ Execute these commands as `root` when inspecting or modifying users and groups:
 ---
 
 ### Step 10: Install TigerVNC Server and Configure Session Defaults & Mandatory Policy
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/tigervnc/vncserver-config-defaults`, `/etc/tigervnc/vncserver-config-mandatory`
@@ -439,7 +439,7 @@ cat /etc/tigervnc/vncserver-config-mandatory
 ---
 
 ### Step 11: Configure VNC User-to-Display Mapping
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/tigervnc/vncserver.users`
@@ -447,10 +447,10 @@ cat /etc/tigervnc/vncserver-config-mandatory
 **Commands:**
 ```bash
 cat << 'EOF' > /etc/tigervnc/vncserver.users
-:1=<USER_1>
-:2=<USER_2>
-:3=<USER_3>
-:4=<USER_4>
+:1=user1
+:2=user2
+:3=user3
+:4=user4
 EOF
 
 # Strip any accidental trailing spaces at the end of lines
@@ -460,10 +460,10 @@ chmod 644 /etc/tigervnc/vncserver.users
 
 **Configuration:**
 ```ini
-:1=<USER_1>
-:2=<USER_2>
-:3=<USER_3>
-:4=<USER_4>
+:1=user1
+:2=user2
+:3=user3
+:4=user4
 ```
 
 **Validation:**
@@ -472,12 +472,12 @@ cat -A /etc/tigervnc/vncserver.users
 ```
 
 **Expected result:**
-Prints `:1=<USER_1>$`, `:2=<USER_2>$`, `:3=<USER_3>$`, `:4=<USER_4>$` with `$` immediately following each username (confirming no trailing spaces exist).
+Prints `:1=user1$`, `:2=user2$`, `:3=user3$`, `:4=user4$` with `$` immediately following each username (confirming no trailing spaces exist).
 
 ---
 
 ### Step 12: Configure VNC Passwords for Each User (`vncpasswd`)
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root` (switching to each `<USER_N>` via `su -`)
 **Configuration file:**
 `/home/<USER_N>/.config/tigervnc/passwd`
@@ -487,36 +487,36 @@ Prints `:1=<USER_1>$`, `:2=<USER_2>$`, `:3=<USER_3>$`, `:4=<USER_4>$` with `$` i
 # Run vncpasswd interactively as each user.
 # Enter the exact same 8-character password set in Step 9.
 # Answer 'n' to "Would you like to enter a view-only password (y/n)?"
-su - <USER_1> -c "vncpasswd"
-su - <USER_2> -c "vncpasswd"
-su - <USER_3> -c "vncpasswd"
-su - <USER_4> -c "vncpasswd"
+su - user1 -c "vncpasswd"
+su - user2 -c "vncpasswd"
+su - user3 -c "vncpasswd"
+su - user4 -c "vncpasswd"
 ```
 
 **Configuration:**
 ```text
 # Interactive prompt sequence for each user:
-Password: <USER_PASSWORD_8CHAR>
-Verify: <USER_PASSWORD_8CHAR>
+Password: pass1234
+Verify: pass1234
 Would you like to enter a view-only password (y/n)? n
 A view-only password is not used
 ```
 
 **Validation:**
 ```bash
-ls -l /home/<USER_1>/.config/tigervnc/passwd \
-      /home/<USER_2>/.config/tigervnc/passwd \
-      /home/<USER_3>/.config/tigervnc/passwd \
-      /home/<USER_4>/.config/tigervnc/passwd
+ls -l /home/user1/.config/tigervnc/passwd \
+      /home/user2/.config/tigervnc/passwd \
+      /home/user3/.config/tigervnc/passwd \
+      /home/user4/.config/tigervnc/passwd
 ```
 
 **Expected result:**
-All four `/home/<USER_N>/.config/tigervnc/passwd` files exist, are owned by `<USER_N>:<USER_N>`, and have `-rw-------` (`0600`) permissions. *(Note: Never run `su - <USER_1> -c "<PASSWORD>"`, as `-c` expects the executable command `vncpasswd`.)*
+All four `/home/<USER_N>/.config/tigervnc/passwd` files exist, are owned by `<USER_N>:<USER_N>`, and have `-rw-------` (`0600`) permissions. *(Note: Never run `su - user1 -c "<PASSWORD>"`, as `-c` expects the executable command `vncpasswd`.)*
 
 ---
 
 ### Step 13: Enable and Start Systemd TigerVNC Services (`:1` through `:4`)
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/usr/lib/systemd/system/vncserver@.service`
@@ -548,7 +548,7 @@ WantedBy=multi-user.target
 ```bash
 systemctl is-active vncserver@:1.service vncserver@:2.service vncserver@:3.service vncserver@:4.service
 ss -lntp | grep 590
-ps -u <USER_1> -u <USER_2> -u <USER_3> -u <USER_4> | grep -E 'Xvnc|gnome-session|gnome-shell'
+ps -u user1 -u user2 -u user3 -u user4 | grep -E 'Xvnc|gnome-session|gnome-shell'
 ```
 
 **Expected result:**
@@ -571,25 +571,25 @@ ps -u <USER_1> -u <USER_2> -u <USER_3> -u <USER_4> | grep -E 'Xvnc|gnome-session
 ---
 
 ### Step 14: Create SFTP Chroot Directory Hierarchy and Permissions (`sftp-allowed`)
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/srv/sftp/<USER_N>/files`
 
 **Commands:**
 ```bash
-# Create chroot directories for sftp-allowed users (<USER_1> and <USER_2>)
-mkdir -p /srv/sftp/<USER_1>/files /srv/sftp/<USER_2>/files
+# Create chroot directories for sftp-allowed users (user1 and user2)
+mkdir -p /srv/sftp/user1/files /srv/sftp/user2/files
 
 # CRITICAL: OpenSSH ChrootDirectory requires root:root ownership and 0755 (no group/other write)
 # on every directory component leading up to and including the chroot root (/srv/sftp/<USER_N>)
-chown root:root /srv /srv/sftp /srv/sftp/<USER_1> /srv/sftp/<USER_2>
-chmod 755 /srv /srv/sftp /srv/sftp/<USER_1> /srv/sftp/<USER_2>
+chown root:root /srv /srv/sftp /srv/sftp/user1 /srv/sftp/user2
+chmod 755 /srv /srv/sftp /srv/sftp/user1 /srv/sftp/user2
 
 # Assign user ownership and 0700 permissions to the inner writable 'files' directory
-chown <USER_1>:sftp-allowed /srv/sftp/<USER_1>/files
-chown <USER_2>:sftp-allowed /srv/sftp/<USER_2>/files
-chmod 700 /srv/sftp/<USER_1>/files /srv/sftp/<USER_2>/files
+chown user1:sftp-allowed /srv/sftp/user1/files
+chown user2:sftp-allowed /srv/sftp/user2/files
+chmod 700 /srv/sftp/user1/files /srv/sftp/user2/files
 ```
 
 **Configuration:**
@@ -597,24 +597,24 @@ chmod 700 /srv/sftp/<USER_1>/files /srv/sftp/<USER_2>/files
 # Directory ownership and permission hierarchy:
 /srv                        -> root:root             0755 (drwxr-xr-x)
 /srv/sftp                   -> root:root             0755 (drwxr-xr-x)
-/srv/sftp/<USER_1>          -> root:root             0755 (drwxr-xr-x) [Chroot Root]
-/srv/sftp/<USER_1>/files    -> <USER_1>:sftp-allowed 0700 (drwx------) [User Upload/Download Dir]
-/srv/sftp/<USER_2>          -> root:root             0755 (drwxr-xr-x) [Chroot Root]
-/srv/sftp/<USER_2>/files    -> <USER_2>:sftp-allowed 0700 (drwx------) [User Upload/Download Dir]
+/srv/sftp/user1          -> root:root             0755 (drwxr-xr-x) [Chroot Root]
+/srv/sftp/user1/files    -> user1:sftp-allowed 0700 (drwx------) [User Upload/Download Dir]
+/srv/sftp/user2          -> root:root             0755 (drwxr-xr-x) [Chroot Root]
+/srv/sftp/user2/files    -> user2:sftp-allowed 0700 (drwx------) [User Upload/Download Dir]
 ```
 
 **Validation:**
 ```bash
-ls -ld /srv /srv/sftp /srv/sftp/<USER_1> /srv/sftp/<USER_1>/files /srv/sftp/<USER_2> /srv/sftp/<USER_2>/files
+ls -ld /srv /srv/sftp /srv/sftp/user1 /srv/sftp/user1/files /srv/sftp/user2 /srv/sftp/user2/files
 ```
 
 **Expected result:**
-`/srv`, `/srv/sftp`, `/srv/sftp/<USER_1>`, and `/srv/sftp/<USER_2>` show `drwxr-xr-x. root root`, while `/srv/sftp/<USER_1>/files` and `/srv/sftp/<USER_2>/files` show `drwx------.` owned by `<USER_1>:sftp-allowed` and `<USER_2>:sftp-allowed`.
+`/srv`, `/srv/sftp`, `/srv/sftp/user1`, and `/srv/sftp/user2` show `drwxr-xr-x. root root`, while `/srv/sftp/user1/files` and `/srv/sftp/user2/files` show `drwx------.` owned by `user1:sftp-allowed` and `user2:sftp-allowed`.
 
 ---
 
 ### Step 15: Enable SSH Password Authentication Across Base and Cloud-Init Configs
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/ssh/sshd_config`, `/etc/ssh/sshd_config.d/*.conf`
@@ -645,7 +645,7 @@ No active (uncommented) `PasswordAuthentication no` lines remain in `/etc/ssh/ss
 ---
 
 ### Step 16: Configure Group-Based SFTP Access Control (`sftp-allowed` vs `sftp-denied`)
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/ssh/sshd_config.d/40-sftp-access.conf`
@@ -702,19 +702,19 @@ Match Group sftp-denied
 **Validation:**
 ```bash
 sshd -t
-sshd -T -C user=<USER_1>,host=localhost,addr=127.0.0.1 | grep -E '^(passwordauthentication|chrootdirectory|forcecommand|denygroups)'
-sshd -T -C user=<USER_3>,host=localhost,addr=127.0.0.1 | grep -E '^(passwordauthentication|chrootdirectory|forcecommand|denygroups)'
+sshd -T -C user=user1,host=localhost,addr=127.0.0.1 | grep -E '^(passwordauthentication|chrootdirectory|forcecommand|denygroups)'
+sshd -T -C user=user3,host=localhost,addr=127.0.0.1 | grep -E '^(passwordauthentication|chrootdirectory|forcecommand|denygroups)'
 ```
 
 **Expected result:**
 * `sshd -t` exits `0` with no syntax warnings.
-* For `<USER_1>` (`sftp-allowed`): `passwordauthentication yes`, `forcecommand internal-sftp`, `chrootdirectory /srv/sftp/%u`.
-* For `<USER_3>` (`sftp-denied`): `denygroups sftp-denied`, `passwordauthentication no`, `forcecommand /usr/sbin/nologin`.
+* For `user1` (`sftp-allowed`): `passwordauthentication yes`, `forcecommand internal-sftp`, `chrootdirectory /srv/sftp/%u`.
+* For `user3` (`sftp-denied`): `denygroups sftp-denied`, `passwordauthentication no`, `forcecommand /usr/sbin/nologin`.
 
 ---
 
 ### Step 17: Alternative SSH/SFTP Scenarios (Preserving SSH Shell or Tunneling While Denying SFTP)
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/ssh/sshd_config.d/40-sftp-access.conf` (Reference patterns when SSH access is required alongside SFTP denial)
@@ -756,7 +756,7 @@ Match Group vncusers
     PermitTTY no
     ForceCommand /usr/sbin/nologin
 
-Match User <USER_1>
+Match User user1
     PermitOpen 127.0.0.1:5901
 ```
 
@@ -773,7 +773,7 @@ Demonstrates how OpenSSH `Match` blocks separate SFTP access (`ForceCommand inte
 ## 7. Firewall, AWS Security Group, and SELinux Configuration
 
 ### Step 18: Configure `firewalld` and AWS Security Group Rules for VNC and SSH/SFTP
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/firewalld/zones/public.xml`
@@ -805,7 +805,7 @@ ss -lntp | grep -E ':22|:590[1-4]'
 ---
 
 ### Step 19: Configure SELinux Contexts and Booleans for Chrooted SFTP Read/Write
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/selinux/targeted/contexts/files/file_contexts.local`
@@ -829,31 +829,31 @@ ssh_chroot_rw_homedirs --> on
 ```bash
 getenforce
 getsebool ssh_chroot_rw_homedirs
-ls -Zd /srv/sftp/<USER_1>/files /srv/sftp/<USER_2>/files
+ls -Zd /srv/sftp/user1/files /srv/sftp/user2/files
 ```
 
 **Expected result:**
 * `getenforce` outputs `Enforcing`.
 * `getsebool ssh_chroot_rw_homedirs` outputs `ssh_chroot_rw_homedirs --> on`.
-* `ls -Zd` confirms `/srv/sftp/<USER_1>/files` and `/srv/sftp/<USER_2>/files` have been relabeled from `var_t` to `unconfined_u:object_r:user_home_t:s0`.
+* `ls -Zd` confirms `/srv/sftp/user1/files` and `/srv/sftp/user2/files` have been relabeled from `var_t` to `unconfined_u:object_r:user_home_t:s0`.
 
 ---
 
 ### Step 20: Verify End-to-End SFTP Upload/Download and VNC Desktop Connections
 **Server:** Windows Client Workstation (`PowerShell` / `Command Prompt` / `TigerVNC Viewer`)
-**Execution user:** `<USER_1>` (Allowed) and `<USER_3>` (Denied)
+**Execution user:** `user1` (Allowed) and `user3` (Denied)
 **Configuration file:**
 `None (Client Verification)`
 
 **Commands:**
 ```powershell
 # 1. Verify TCP reachability to SSH (22) and VNC (5901-5904) from Windows PowerShell
-Test-NetConnection -ComputerName <SERVER_IP> -Port 22
-Test-NetConnection -ComputerName <SERVER_IP> -Port 5901
+Test-NetConnection -ComputerName 172.31.15.219 -Port 22
+Test-NetConnection -ComputerName 172.31.15.219 -Port 5901
 
-# 2. Test SFTP as an ALLOWED user (<USER_1> in sftp-allowed)
+# 2. Test SFTP as an ALLOWED user (user1 in sftp-allowed)
 echo "sftp-test-payload" > test_upload.txt
-sftp <USER_1>@<SERVER_IP>
+sftp user1@172.31.15.219
 # Inside sftp> prompt:
 # cd files
 # put test_upload.txt
@@ -861,31 +861,31 @@ sftp <USER_1>@<SERVER_IP>
 # get test_upload.txt test_download.txt
 # bye
 
-# 3. Test SFTP as a DENIED user (<USER_3> in sftp-denied)
-sftp <USER_3>@<SERVER_IP>
+# 3. Test SFTP as a DENIED user (user3 in sftp-denied)
+sftp user3@172.31.15.219
 ```
 
 **Configuration:**
 ```text
 # TigerVNC Viewer Connection Targets (Direct Connection):
-# - <USER_1>: <SERVER_IP>:5901
-# - <USER_2>: <SERVER_IP>:5902
-# - <USER_3>: <SERVER_IP>:5903
-# - <USER_4>: <SERVER_IP>:5904
+# - user1: 172.31.15.219:5901
+# - user2: 172.31.15.219:5902
+# - user3: 172.31.15.219:5903
+# - user4: 172.31.15.219:5904
 ```
 
 **Validation:**
 ```bash
 # Run on RHEL 9.8 Server as root to verify uploaded file and active VNC connections:
-ls -la /srv/sftp/<USER_1>/files/
+ls -la /srv/sftp/user1/files/
 ss -ntp | grep -E ':22|:590[1-4]'
 ```
 
 **Expected result:**
 * `Test-NetConnection` returns `TcpTestSucceeded : True` for both port `22` and port `5901`.
-* `sftp <USER_1>@<SERVER_IP>` logs in, and `put`/`get` inside `files/` succeed.
-* `sftp <USER_3>@<SERVER_IP>` is rejected with `Permission denied`.
-* All four users (`<USER_1>` through `<USER_4>`) can connect to `<SERVER_IP>:5901`–`5904` in TigerVNC Viewer using their 8-character password.
+* `sftp user1@172.31.15.219` logs in, and `put`/`get` inside `files/` succeed.
+* `sftp user3@172.31.15.219` is rejected with `Permission denied`.
+* All four users (`user1` through `user4`) can connect to `172.31.15.219:5901`–`5904` in TigerVNC Viewer using their 8-character password.
 
 ---
 
@@ -894,7 +894,7 @@ ss -ntp | grep -E ':22|:590[1-4]'
 If your deployment includes the privilege-isolated cross-server calculator connector from our initial architecture (`Server 1` connecting to `Server 2` at `<SERVER2_IP>`), execute Step 21 on the RHEL 9.8 server.
 
 ### Step 21: Configure `/opt/calc-connector` and `/etc/sudoers.d/calc-connector`
-**Server:** RHEL 9.8 (`<SERVER_HOSTNAME>`)
+**Server:** RHEL 9.8 (`vnc-server`)
 **Execution user:** `root`
 **Configuration file:**
 `/etc/sudoers.d/calc-connector`, `/opt/calc-connector/.env`, `/opt/calc-connector/run_calc.sh`
@@ -904,7 +904,7 @@ If your deployment includes the privilege-isolated cross-server calculator conne
 # 1. Create functional groups and add the four VNC users
 getent group vncusers || groupadd vncusers
 getent group calcreaders || groupadd calcreaders
-for u in <USER_1> <USER_2> <USER_3> <USER_4>; do
+for u in user1 user2 user3 user4; do
     usermod -aG vncusers,calcreaders "$u"
 done
 
@@ -941,7 +941,7 @@ if [[ $EUID -ne 0 ]]; then
     exec sudo /opt/calc-connector/run_calc.sh "$@"
 fi
 set -uo pipefail
-export XAUTHORITY="${XAUTHORITY:-/home/${SUDO_USER:-<USER_1>}/.Xauthority}"
+export XAUTHORITY="${XAUTHORITY:-/home/${SUDO_USER:-user1}/.Xauthority}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -997,11 +997,11 @@ Defaults!/opt/calc-connector/run_calc.sh env_keep += "DISPLAY XAUTHORITY"
 **Validation:**
 ```bash
 visudo -cf /etc/sudoers.d/calc-connector
-sudo -l -U <USER_1>
+sudo -l -U user1
 ```
 
 **Expected result:**
-`visudo -cf` outputs `/etc/sudoers.d/calc-connector: parsed OK`, and `sudo -l -U <USER_1>` lists only `(root) NOPASSWD: /opt/calc-connector/run_calc.sh`.
+`visudo -cf` outputs `/etc/sudoers.d/calc-connector: parsed OK`, and `sudo -l -U user1` lists only `(root) NOPASSWD: /opt/calc-connector/run_calc.sh`.
 
 ---
 
@@ -1049,10 +1049,10 @@ loginctl list-users
      ```
    * On Windows Client (`PowerShell`):
      ```powershell
-     Test-NetConnection -ComputerName <SERVER_IP> -Port 5901
+     Test-NetConnection -ComputerName 172.31.15.219 -Port 5901
      ```
 3. **Possible cause:**
-   * The client entered the wrong server IP address (e.g., connecting to `<SERVER2_IP>` instead of `<SERVER_IP>`).
+   * The client entered the wrong server IP address (e.g., connecting to `<SERVER2_IP>` instead of `172.31.15.219`).
    * The AWS EC2 Security Group does not have an Inbound rule allowing TCP `5901–5904`.
    * `firewalld` is blocking `5901-5904/tcp`, or `localhost` is present in `/etc/tigervnc/vncserver-config-mandatory` forcing `Xvnc` to bind only to `127.0.0.1`.
 4. **Corrective commands (Run as `root` on RHEL 9.8):**
@@ -1064,45 +1064,45 @@ loginctl list-users
    ```
    *(Also open Inbound TCP `5901-5904` in the AWS EC2 Security Group and use the exact IP returned by `hostname -I`.)*
 5. **Verification procedure:**
-   `ss -lntp | grep 5901` shows `0.0.0.0:5901`, `Test-NetConnection -ComputerName <SERVER_IP> -Port 5901` returns `TcpTestSucceeded : True`, and TigerVNC Viewer prompts for the VNC password.
+   `ss -lntp | grep 5901` shows `0.0.0.0:5901`, `Test-NetConnection -ComputerName 172.31.15.219 -Port 5901` returns `TcpTestSucceeded : True`, and TigerVNC Viewer prompts for the VNC password.
 
 ---
 
 ### Issue 2: User Added to Wrong SFTP Group (`sftp-denied` User Can Log Into SFTP)
-1. **Problem description:** Users intended to be denied SFTP access (`<USER_3>`, `<USER_4>`) are able to connect via SFTP, and `sshd -T -C user=<USER_3>` shows `forcecommand internal-sftp`.
+1. **Problem description:** Users intended to be denied SFTP access (`user3`, `user4`) are able to connect via SFTP, and `sshd -T -C user=user3` shows `forcecommand internal-sftp`.
 2. **Diagnostic commands (Run as `root`):**
    ```bash
-   id <USER_3>
-   id <USER_4>
+   id user3
+   id user4
    getent group sftp-allowed sftp-denied
    ```
-3. **Possible cause:** During user creation, `useradd -m -G sftp-allowed <USER_3>` was accidentally executed instead of `-G sftp-denied`, placing `<USER_3>` in `sftp-allowed` (`1001`). Because `Match Group sftp-allowed` is evaluated first in `40-sftp-access.conf`, `<USER_3>` is granted SFTP access.
+3. **Possible cause:** During user creation, `useradd -m -G sftp-allowed user3` was accidentally executed instead of `-G sftp-denied`, placing `user3` in `sftp-allowed` (`1001`). Because `Match Group sftp-allowed` is evaluated first in `40-sftp-access.conf`, `user3` is granted SFTP access.
 4. **Corrective commands (Run as `root`):**
    ```bash
-   usermod -G sftp-denied <USER_3>
-   usermod -G sftp-denied <USER_4>
-   loginctl terminate-user <USER_3> 2>/dev/null || true
-   loginctl terminate-user <USER_4> 2>/dev/null || true
+   usermod -G sftp-denied user3
+   usermod -G sftp-denied user4
+   loginctl terminate-user user3 2>/dev/null || true
+   loginctl terminate-user user4 2>/dev/null || true
    systemctl restart vncserver@:3.service vncserver@:4.service
    ```
 5. **Verification procedure:**
-   `getent group sftp-allowed sftp-denied` shows `<USER_3>,<USER_4>` only under `sftp-denied:x:1002:`, and `sshd -T -C user=<USER_3>,host=localhost,addr=127.0.0.1 | grep passwordauthentication` returns `passwordauthentication no`.
+   `getent group sftp-allowed sftp-denied` shows `user3,user4` only under `sftp-denied:x:1002:`, and `sshd -T -C user=user3,host=localhost,addr=127.0.0.1 | grep passwordauthentication` returns `passwordauthentication no`.
 
 ---
 
 ### Issue 3: `bash: <PASSWORD>: command not found` When Setting VNC Password
-1. **Problem description:** Running `su - <USER_1> -c "<PASSWORD>"` returns `bash: <PASSWORD>: command not found` and does not set the VNC password.
+1. **Problem description:** Running `su - user1 -c "<PASSWORD>"` returns `bash: <PASSWORD>: command not found` and does not set the VNC password.
 2. **Diagnostic commands (Run as `root`):**
    ```bash
-   ls -la /home/<USER_1>/.config/tigervnc/passwd
+   ls -la /home/user1/.config/tigervnc/passwd
    ```
 3. **Possible cause:** The `-c` flag of `su` takes the command name to execute (`vncpasswd`), not the password string. Also note that on RHEL 9.8, `vncpasswd` stores the file in `~/.config/tigervnc/passwd`, not `~/.vnc/passwd`.
 4. **Corrective commands (Run as `root`):**
    ```bash
-   su - <USER_1> -c "vncpasswd"
+   su - user1 -c "vncpasswd"
    ```
 5. **Verification procedure:**
-   `ls -l /home/<USER_1>/.config/tigervnc/passwd` shows `-rw-------. 1 <USER_1> <USER_1>`.
+   `ls -l /home/user1/.config/tigervnc/passwd` shows `-rw-------. 1 user1 user1`.
 
 ---
 
@@ -1115,14 +1115,14 @@ loginctl list-users
    ls -la /tmp/.X1-lock /tmp/.X11-unix/X1
    ```
 3. **Possible cause:**
-   * Trailing whitespace after the username in `/etc/tigervnc/vncserver.users` (e.g., `:1=<USER_1>   $`).
-   * The user has not run `vncpasswd` yet (`/home/<USER_1>/.config/tigervnc/passwd` is missing).
+   * Trailing whitespace after the username in `/etc/tigervnc/vncserver.users` (e.g., `:1=user1   $`).
+   * The user has not run `vncpasswd` yet (`/home/user1/.config/tigervnc/passwd` is missing).
    * A stale X11 lock file (`/tmp/.X1-lock` or `/tmp/.X11-unix/X1`) remains from an unclean shutdown.
 4. **Corrective commands (Run as `root`):**
    ```bash
    sed -i 's/[[:space:]]*$//' /etc/tigervnc/vncserver.users
    rm -f /tmp/.X1-lock /tmp/.X11-unix/X1
-   su - <USER_1> -c "vncpasswd"
+   su - user1 -c "vncpasswd"
    systemctl restart vncserver@:1.service
    ```
 5. **Verification procedure:**
@@ -1131,46 +1131,46 @@ loginctl list-users
 ---
 
 ### Issue 5: SFTP Connection Immediately Closes (`Connection closed by remote host`)
-1. **Problem description:** `sftp <USER_1>@<SERVER_IP>` accepts the password, then immediately exits with `client_loop: send disconnect: Broken pipe` or `Connection closed by remote host`.
+1. **Problem description:** `sftp user1@172.31.15.219` accepts the password, then immediately exits with `client_loop: send disconnect: Broken pipe` or `Connection closed by remote host`.
 2. **Diagnostic commands (Run as `root`):**
    ```bash
    journalctl -u sshd --no-pager -n 30
-   ls -ld /srv /srv/sftp /srv/sftp/<USER_1> /srv/sftp/<USER_1>/files
+   ls -ld /srv /srv/sftp /srv/sftp/user1 /srv/sftp/user1/files
    ```
-3. **Possible cause:** `sshd` logs `fatal: bad ownership or modes for chroot directory`. One of `/srv`, `/srv/sftp`, or `/srv/sftp/<USER_1>` is owned by `<USER_1>` instead of `root:root`, or has permissions wider than `0755` (such as `0775` or `0777`).
+3. **Possible cause:** `sshd` logs `fatal: bad ownership or modes for chroot directory`. One of `/srv`, `/srv/sftp`, or `/srv/sftp/user1` is owned by `user1` instead of `root:root`, or has permissions wider than `0755` (such as `0775` or `0777`).
 4. **Corrective commands (Run as `root`):**
    ```bash
-   chown root:root /srv /srv/sftp /srv/sftp/<USER_1>
-   chmod 755 /srv /srv/sftp /srv/sftp/<USER_1>
-   chown <USER_1>:sftp-allowed /srv/sftp/<USER_1>/files
-   chmod 700 /srv/sftp/<USER_1>/files
+   chown root:root /srv /srv/sftp /srv/sftp/user1
+   chmod 755 /srv /srv/sftp /srv/sftp/user1
+   chown user1:sftp-allowed /srv/sftp/user1/files
+   chmod 700 /srv/sftp/user1/files
    ```
 5. **Verification procedure:**
-   `sftp <USER_1>@<SERVER_IP>` connects and stays at the `sftp>` prompt.
+   `sftp user1@172.31.15.219` connects and stays at the `sftp>` prompt.
 
 ---
 
 ### Issue 6: SFTP Login Succeeds, But Uploading Files Fails with `Permission denied`
-1. **Problem description:** `<USER_1>` logs into SFTP, runs `cd files` and `put file.txt`, and receives `remote open("/files/file.txt"): Permission denied`.
+1. **Problem description:** `user1` logs into SFTP, runs `cd files` and `put file.txt`, and receives `remote open("/files/file.txt"): Permission denied`.
 2. **Diagnostic commands (Run as `root`):**
    ```bash
    ausearch -m avc -ts recent
    getsebool ssh_chroot_rw_homedirs
-   ls -Zd /srv/sftp/<USER_1>/files
+   ls -Zd /srv/sftp/user1/files
    ```
 3. **Possible cause:**
    * The user tried to run `put` in the chroot root `/` instead of running `cd files` first.
-   * SELinux is blocking `chroot_user_t` from writing to `/srv/sftp/<USER_1>/files` because the directory is labeled `var_t` instead of `user_home_t`, or `ssh_chroot_rw_homedirs` is `off`.
+   * SELinux is blocking `chroot_user_t` from writing to `/srv/sftp/user1/files` because the directory is labeled `var_t` instead of `user_home_t`, or `ssh_chroot_rw_homedirs` is `off`.
 4. **Corrective commands (Run as `root`):**
    ```bash
    semanage fcontext -a -t user_home_t "/srv/sftp/[^/]+/files(/.*)?"
    restorecon -Rv /srv/sftp
    setsebool -P ssh_chroot_rw_homedirs on
-   chown <USER_1>:sftp-allowed /srv/sftp/<USER_1>/files
-   chmod 700 /srv/sftp/<USER_1>/files
+   chown user1:sftp-allowed /srv/sftp/user1/files
+   chmod 700 /srv/sftp/user1/files
    ```
 5. **Verification procedure:**
-   `ls -Zd /srv/sftp/<USER_1>/files` shows `user_home_t`, and `put` inside `files/` succeeds.
+   `ls -Zd /srv/sftp/user1/files` shows `user_home_t`, and `put` inside `files/` succeeds.
 
 ---
 
@@ -1179,7 +1179,7 @@ loginctl list-users
 2. **Diagnostic commands (Run as `root`):**
    ```bash
    grep -rn "PasswordAuthentication" /etc/ssh/
-   sshd -T -C user=<USER_1>,host=localhost,addr=127.0.0.1 | grep passwordauthentication
+   sshd -T -C user=user1,host=localhost,addr=127.0.0.1 | grep passwordauthentication
    ```
 3. **Possible cause:** A drop-in file in `/etc/ssh/sshd_config.d/` with a lower lexical number (or `/etc/ssh/sshd_config`) sets `PasswordAuthentication no`.
 4. **Corrective commands (Run as `root`):**
@@ -1191,7 +1191,7 @@ loginctl list-users
    sshd -t && systemctl reload sshd
    ```
 5. **Verification procedure:**
-   `sshd -T -C user=<USER_1>,host=localhost,addr=127.0.0.1 | grep passwordauthentication` prints `passwordauthentication yes`.
+   `sshd -T -C user=user1,host=localhost,addr=127.0.0.1 | grep passwordauthentication` prints `passwordauthentication yes`.
 
 ---
 
@@ -1199,17 +1199,17 @@ loginctl list-users
 1. **Problem description:** After changing a user's groups with `usermod` or `gpasswd`, processes running inside their GNOME VNC desktop still reflect the old group permissions.
 2. **Diagnostic commands (Run as `root`):**
    ```bash
-   id <USER_1>
-   loginctl list-sessions | grep <USER_1>
+   id user1
+   loginctl list-sessions | grep user1
    ```
 3. **Possible cause:** Linux sessions inherit supplementary group credentials at login time; running `Xvnc` and `gnome-session` processes do not dynamically reload `/etc/group`.
 4. **Corrective commands (Run as `root`):**
    ```bash
-   loginctl terminate-user <USER_1>
+   loginctl terminate-user user1
    systemctl restart vncserver@:1.service
    ```
 5. **Verification procedure:**
-   Open a new terminal in `<USER_1>`'s VNC desktop and run `id`; the output matches `id <USER_1>` from root.
+   Open a new terminal in `user1`'s VNC desktop and run `id`; the output matches `id user1` from root.
 
 ---
 
@@ -1218,15 +1218,15 @@ loginctl list-users
 2. **Diagnostic commands (Run as `root`):**
    ```bash
    rpm -q gnome-shell gnome-session xorg-x11-xauth
-   cat /home/<USER_1>/.local/share/xorg/Xorg.*.log 2>/dev/null || journalctl -u vncserver@:1.service -n 50 --no-pager
-   ls -ld /home/<USER_1>
+   cat /home/user1/.local/share/xorg/Xorg.*.log 2>/dev/null || journalctl -u vncserver@:1.service -n 50 --no-pager
+   ls -ld /home/user1
    ```
 3. **Possible cause:** Missing GNOME packages, corrupted `~/.config` or `~/.cache` ownership (e.g., owned by `root` after an admin ran a GUI command inside the user's home), or another active graphical login already running for the same user on local `gdm`.
 4. **Corrective commands (Run as `root`):**
    ```bash
-   chown -R <USER_1>:<USER_1> /home/<USER_1>
-   chmod 700 /home/<USER_1>
-   loginctl terminate-user <USER_1>
+   chown -R user1:user1 /home/user1
+   chmod 700 /home/user1
+   loginctl terminate-user user1
    systemctl restart vncserver@:1.service
    ```
 5. **Verification procedure:**
@@ -1236,34 +1236,34 @@ loginctl list-users
 
 ## 11. Employee Access Lifecycle Administration
 
-### 11.1 Onboarding a New Employee (Example: `<NEW_USER>` on Display `:5` / Port `5905`)
+### 11.1 Onboarding a New Employee (Example: `newuser` on Display `:5` / Port `5905`)
 
 Execute the following procedure as `root` on the RHEL 9.8 server:
 
 ```bash
 # 1. Create Linux user and assign either 'sftp-allowed' OR 'sftp-denied'
 # Option A (SFTP Allowed):
-useradd -m -s /bin/bash -G sftp-allowed <NEW_USER>
+useradd -m -s /bin/bash -G sftp-allowed newuser
 # Option B (SFTP Denied):
-# useradd -m -s /bin/bash -G sftp-denied <NEW_USER>
+# useradd -m -s /bin/bash -G sftp-denied newuser
 
 # 2. Set home directory permissions and interactive 8-character Linux password
-chmod 700 /home/<NEW_USER>
-passwd <NEW_USER>
+chmod 700 /home/newuser
+passwd newuser
 
 # 3. Set matching 8-character VNC password interactively
-su - <NEW_USER> -c "vncpasswd"
+su - newuser -c "vncpasswd"
 
 # 4. If SFTP Allowed, create chroot directory and apply SELinux context
-mkdir -p /srv/sftp/<NEW_USER>/files
-chown root:root /srv /srv/sftp /srv/sftp/<NEW_USER>
-chmod 755 /srv /srv/sftp /srv/sftp/<NEW_USER>
-chown <NEW_USER>:sftp-allowed /srv/sftp/<NEW_USER>/files
-chmod 700 /srv/sftp/<NEW_USER>/files
-restorecon -Rv /srv/sftp/<NEW_USER>
+mkdir -p /srv/sftp/newuser/files
+chown root:root /srv /srv/sftp /srv/sftp/newuser
+chmod 755 /srv /srv/sftp /srv/sftp/newuser
+chown newuser:sftp-allowed /srv/sftp/newuser/files
+chmod 700 /srv/sftp/newuser/files
+restorecon -Rv /srv/sftp/newuser
 
 # 5. Assign next available VNC display (:5 -> TCP 5905)
-echo ":5=<NEW_USER>" >> /etc/tigervnc/vncserver.users
+echo ":5=newuser" >> /etc/tigervnc/vncserver.users
 sed -i 's/[[:space:]]*$//' /etc/tigervnc/vncserver.users
 
 # 6. Open port 5905 in firewalld (and AWS Security Group) and start service
@@ -1275,10 +1275,10 @@ systemctl enable --now vncserver@:5.service
 
 **Verify Onboarding:**
 ```bash
-id <NEW_USER>
+id newuser
 systemctl is-active vncserver@:5.service
 ss -lntp | grep ':5905'
-sshd -T -C user=<NEW_USER>,host=localhost,addr=127.0.0.1 | grep -E '^(passwordauthentication|chrootdirectory|forcecommand)'
+sshd -T -C user=newuser,host=localhost,addr=127.0.0.1 | grep -E '^(passwordauthentication|chrootdirectory|forcecommand)'
 ```
 
 ---
@@ -1289,38 +1289,38 @@ Execute as `root` on the RHEL 9.8 server:
 
 #### A. Grant SFTP Access to a Previously Denied User (Move from `sftp-denied` to `sftp-allowed`)
 ```bash
-gpasswd -d <USER_3> sftp-denied
-usermod -aG sftp-allowed <USER_3>
+gpasswd -d user3 sftp-denied
+usermod -aG sftp-allowed user3
 
-mkdir -p /srv/sftp/<USER_3>/files
-chown root:root /srv /srv/sftp /srv/sftp/<USER_3>
-chmod 755 /srv /srv/sftp /srv/sftp/<USER_3>
-chown <USER_3>:sftp-allowed /srv/sftp/<USER_3>/files
-chmod 700 /srv/sftp/<USER_3>/files
-restorecon -Rv /srv/sftp/<USER_3>
+mkdir -p /srv/sftp/user3/files
+chown root:root /srv /srv/sftp /srv/sftp/user3
+chmod 755 /srv /srv/sftp /srv/sftp/user3
+chown user3:sftp-allowed /srv/sftp/user3/files
+chmod 700 /srv/sftp/user3/files
+restorecon -Rv /srv/sftp/user3
 
 # Verify effective SSH/SFTP policy:
-id <USER_3>
-sshd -T -C user=<USER_3>,host=localhost,addr=127.0.0.1 | grep -E '^(passwordauthentication|chrootdirectory|forcecommand)'
+id user3
+sshd -T -C user=user3,host=localhost,addr=127.0.0.1 | grep -E '^(passwordauthentication|chrootdirectory|forcecommand)'
 ```
 
 #### B. Revoke SFTP Access from an Allowed User (Move from `sftp-allowed` to `sftp-denied`)
 ```bash
-gpasswd -d <USER_2> sftp-allowed
-usermod -aG sftp-denied <USER_2>
+gpasswd -d user2 sftp-allowed
+usermod -aG sftp-denied user2
 
 # Terminate any active SFTP/SSH processes owned by the user while keeping or restarting VNC:
-pkill -u <USER_2> sshd 2>/dev/null || true
+pkill -u user2 sshd 2>/dev/null || true
 
 # Verify SFTP is now blocked:
-id <USER_2>
-sshd -T -C user=<USER_2>,host=localhost,addr=127.0.0.1 | grep -E '^(passwordauthentication|forcecommand|denygroups)'
+id user2
+sshd -T -C user=user2,host=localhost,addr=127.0.0.1 | grep -E '^(passwordauthentication|forcecommand|denygroups)'
 ```
 
 #### C. Reset an Employee's Linux and VNC Passwords
 ```bash
-passwd <USER_1>
-su - <USER_1> -c "vncpasswd"
+passwd user1
+su - user1 -c "vncpasswd"
 systemctl restart vncserver@:1.service
 systemctl is-active vncserver@:1.service
 ```
@@ -1332,47 +1332,47 @@ systemctl is-active vncserver@:1.service
 When an employee leaves, **never run `userdel -r` or delete their files automatically**. Follow this sequence as `root` to immediately revoke VNC, SFTP, and Linux access while preserving and auditing their files:
 
 ```bash
-# 1. Stop and disable the employee's VNC service (example: <USER_2> on display :2)
+# 1. Stop and disable the employee's VNC service (example: user2 on display :2)
 systemctl disable --now vncserver@:2.service
 
 # 2. Remove the display mapping from /etc/tigervnc/vncserver.users
-sed -i '/^:2=<USER_2>$/d' /etc/tigervnc/vncserver.users
+sed -i '/^:2=user2$/d' /etc/tigervnc/vncserver.users
 
 # 3. Lock the Linux password, expire the account immediately, and set shell to nologin
-usermod -L <USER_2>
-chage -E 0 <USER_2>
-usermod -s /sbin/nologin <USER_2>
+usermod -L user2
+chage -E 0 user2
+usermod -s /sbin/nologin user2
 
 # 4. Revoke SFTP and functional group memberships, and place in sftp-denied
-gpasswd -d <USER_2> sftp-allowed 2>/dev/null || true
-gpasswd -d <USER_2> vncusers 2>/dev/null || true
-gpasswd -d <USER_2> calcreaders 2>/dev/null || true
-usermod -aG sftp-denied <USER_2>
+gpasswd -d user2 sftp-allowed 2>/dev/null || true
+gpasswd -d user2 vncusers 2>/dev/null || true
+gpasswd -d user2 calcreaders 2>/dev/null || true
+usermod -aG sftp-denied user2
 
 # 5. Terminate all remaining processes and active sessions for the user
-loginctl terminate-user <USER_2> 2>/dev/null || true
-pkill -9 -u <USER_2> 2>/dev/null || true
+loginctl terminate-user user2 2>/dev/null || true
+pkill -9 -u user2 2>/dev/null || true
 
 # 6. Audit and preserve all files owned by the employee in /home and /srv/sftp
-mkdir -p /srv/archive/offboarded_<USER_2>_$(date +%F)
-chmod 700 /srv/archive/offboarded_<USER_2>_$(date +%F)
-find /home/<USER_2> /srv/sftp/<USER_2> -ls > /srv/archive/offboarded_<USER_2>_$(date +%F)/file_inventory.txt 2>/dev/null || true
-cp -a /home/<USER_2> /srv/archive/offboarded_<USER_2>_$(date +%F)/home_backup 2>/dev/null || true
-cp -a /srv/sftp/<USER_2> /srv/archive/offboarded_<USER_2>_$(date +%F)/sftp_backup 2>/dev/null || true
-chown -R root:root /srv/archive/offboarded_<USER_2>_$(date +%F)
+mkdir -p /srv/archive/offboarded_user2_$(date +%F)
+chmod 700 /srv/archive/offboarded_user2_$(date +%F)
+find /home/user2 /srv/sftp/user2 -ls > /srv/archive/offboarded_user2_$(date +%F)/file_inventory.txt 2>/dev/null || true
+cp -a /home/user2 /srv/archive/offboarded_user2_$(date +%F)/home_backup 2>/dev/null || true
+cp -a /srv/sftp/user2 /srv/archive/offboarded_user2_$(date +%F)/sftp_backup 2>/dev/null || true
+chown -R root:root /srv/archive/offboarded_user2_$(date +%F)
 ```
 
 **Verify Offboarding:**
 ```bash
-passwd -S <USER_2>
-chage -l <USER_2>
-id <USER_2>
+passwd -S user2
+chage -l user2
+id user2
 systemctl is-active vncserver@:2.service || true
 ss -lntp | grep ':5902' || echo "Port 5902 closed"
-ps -u <USER_2> || echo "No active processes"
-ls -ld /srv/archive/offboarded_<USER_2>_*
+ps -u user2 || echo "No active processes"
+ls -ld /srv/archive/offboarded_user2_*
 ```
-* **Expected result:** `passwd -S` shows `LK` (locked), `chage -l` shows `Account expires: Jan 01, 1970`, port `5902` is closed, zero processes are running as `<USER_2>`, and all files in `/home/<USER_2>` and `/srv/sftp/<USER_2>` remain intact and backed up under `/srv/archive/`.
+* **Expected result:** `passwd -S` shows `LK` (locked), `chage -l` shows `Account expires: Jan 01, 1970`, port `5902` is closed, zero processes are running as `user2`, and all files in `/home/user2` and `/srv/sftp/user2` remain intact and backed up under `/srv/archive/`.
 
 ---
 
